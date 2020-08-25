@@ -20,22 +20,24 @@ import javafx.scene.layout.Priority
 import javafx.scene.paint.Color
 import javafx.util.StringConverter
 import javafx.util.converter.DateTimeStringConverter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import tornadofx.*
 import java.io.File
 import java.time.Duration
 import java.util.Date
+import kotlin.coroutines.EmptyCoroutineContext
 
 class MainView : View("DynamoDb Auto Scaling Estimator") {
     private val cloudWatchMetricsController: CloudWatchMetricsController by di()
+
+    private val coroutineScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.Default)
 
     override val root = vbox {
 
         prefHeight = 800.0
         prefWidth = 1500.0
-
-//        val data =
-//            jacksonObjectMapper().registerModule(JavaTimeModule()).readValue<List<Point>>(File("out.json").reader())
-//                .sortedBy { it.time }
 
         lateinit var lineChart: LineChart<Number, Number>
 
@@ -74,16 +76,22 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                     buttonbar {
                         button("Fetch Cloudwatch Data") {
-                            alignment = Pos.BASELINE_RIGHT
-
                             action {
-                                cloudWatchMetricsController.fillOutCloudWatchData(
-                                    chartAxis = lineChart.xAxis as NumberAxis,
-                                    metric = metricField.value,
-                                    region = regionField.value,
-                                    seriesData = consumedDataList,
-                                    tableName = tableNameField.text
-                                )
+                                isDisable = true
+
+                                coroutineScope.launch {
+                                    try {
+                                        cloudWatchMetricsController.fillOutCloudWatchData(
+                                            chartAxis = lineChart.xAxis as NumberAxis,
+                                            metric = metricField.value,
+                                            region = regionField.value,
+                                            seriesData = consumedDataList,
+                                            tableName = tableNameField.text
+                                        )
+                                    } finally {
+                                        isDisable = false
+                                    }
+                                }
                             }
                         }
                     }

@@ -6,7 +6,6 @@ import javafx.collections.ObservableList
 import javafx.scene.chart.NumberAxis
 import javafx.scene.chart.XYChart
 import org.springframework.stereotype.Component
-import java.time.Duration
 
 @Component
 class CloudWatchMetricsController(
