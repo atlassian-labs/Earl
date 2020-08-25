@@ -23,7 +23,7 @@ class CloudWatchMetricsFetcher(
         metricName: String,
         region: Regions,
         tableName: String
-    ) {
+    ): List<Point> {
         val client = cloudWatchClient[region]!!
 
         val now = DateTime.now()
@@ -53,15 +53,14 @@ class CloudWatchMetricsFetcher(
                 .withEndTime(now.toDate())
         )
 
-        val objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
-        metricsResult.metricDataResults.forEach {
+        return metricsResult.metricDataResults.first().let {
             it.timestamps
                 .zip(it.values)
                 .map { (timestamp, value) ->
                     Point(timestamp.toInstant(), value.toDouble() / 60.0)
                 }
-                .let { values -> File("out.json").writeText(objectMapper.writeValueAsString(values)) }
-        }
+        }.sortedBy { it.time }
+            .let { it.subList(0, it.size - 1) } // Last data point is probably incomplete
     }
 }
 
