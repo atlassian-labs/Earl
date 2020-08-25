@@ -1,11 +1,14 @@
 package io.atlassian.earl.views
 
+import com.amazonaws.regions.Regions
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.atlassian.earl.cloudwatch.Point
 import io.atlassian.earl.controller.AutoScalingCalculator
 import io.atlassian.earl.controller.AutoScalingConfig
+import javafx.geometry.Orientation
+import javafx.geometry.Pos
 import javafx.scene.chart.LineChart
 import javafx.scene.chart.NumberAxis
 import javafx.scene.layout.Priority
@@ -15,19 +18,90 @@ import javafx.util.converter.DateTimeStringConverter
 import tornadofx.*
 import java.io.File
 import java.time.Duration
-import java.time.ZoneOffset
 import java.util.Date
 
 class MainView : View("My View") {
     override val root = vbox {
 
-        prefHeight = 400.0
+        prefHeight = 800.0
         prefWidth = 1500.0
 
-        val data = jacksonObjectMapper().registerModule(JavaTimeModule()).readValue<List<Point>>(File("out.json").reader())
-            .sortedBy { it.time }
+        val data =
+            jacksonObjectMapper().registerModule(JavaTimeModule()).readValue<List<Point>>(File("out.json").reader())
+                .sortedBy { it.time }
 
         lateinit var lineChart: LineChart<Number, Number>
+
+        form {
+            hbox(5) {
+                spacing = 10.0
+
+                fieldset("DynamoDb Table Details") {
+                    field("Table Name") {
+                        textfield()
+                    }
+
+                    field("Region") {
+                        combobox(values = listOf(*Regions.values())) {
+                            value = Regions.US_EAST_1
+                            fitToParentWidth()
+                        }
+                    }
+
+                    field("Metric") {
+                        combobox(values = listOf("ConsumedReadCapacityUnits", "ConsumedWriteCapacityUnits")) {
+                            value = "ConsumedWriteCapacityUnits"
+                        }
+                    }
+
+                    field("Index Name (Optional)") {
+                        textfield()
+                    }
+
+                    buttonbar {
+                        button("Fetch Cloudwatch Data") {
+                            alignment = Pos.BASELINE_RIGHT
+                        }
+                    }
+                }
+
+                separator(orientation = Orientation.VERTICAL)
+
+                fieldset("Auto Scaling Settings") {
+                    field("Min Capacity") {
+                        textfield()
+                    }
+
+                    field("Max Capacity") {
+                        textfield()
+                    }
+
+                    field("Target Capacity (0.2-0.9)") {
+                        textfield {
+                            text = "0.7"
+                        }
+                    }
+
+                    field("Scaling Out Cooldown (s)") {
+                        textfield {
+                            text = "300"
+                        }
+                    }
+
+                    field("Scaling In Cooldown (s)") {
+                        textfield {
+                            text = "1800"
+                        }
+                    }
+
+                    buttonbar {
+                        button("Estimate Auto Scaling") {
+                            alignment = Pos.BASELINE_RIGHT
+                        }
+                    }
+                }
+            }
+        }
 
         button {
             text = "Fill in auto scaling"
@@ -84,7 +158,7 @@ class MainView : View("My View") {
             vgrow = Priority.ALWAYS
 
             series("Consumed") {
-                data.forEach { (time, value) -> data(time.toEpochMilli(), value) }
+//                data.forEach { (time, value) -> data(time.toEpochMilli(), value) }
 
             }
         }
