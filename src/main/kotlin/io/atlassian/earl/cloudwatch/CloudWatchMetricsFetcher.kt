@@ -16,6 +16,7 @@ class CloudWatchMetricsFetcher(
     private val cloudWatchClient: Map<Regions, AmazonCloudWatch>
 ) {
     fun getMetricsForTable(
+        indexName: String?,
         metricName: String,
         region: Regions,
         tableName: String
@@ -23,6 +24,17 @@ class CloudWatchMetricsFetcher(
         val client = cloudWatchClient[region]!!
 
         val now = DateTime.now()
+
+        val dimensions = listOfNotNull(
+            Dimension()
+                .withName("TableName")
+                .withValue(tableName),
+            indexName?.let {
+                Dimension()
+                    .withName("GlobalSecondaryIndexName")
+                    .withValue(it)
+            }
+        )
 
         val metricsResult = client.getMetricData(
             GetMetricDataRequest()
@@ -35,11 +47,7 @@ class CloudWatchMetricsFetcher(
                                     Metric()
                                         .withNamespace("AWS/DynamoDB")
                                         .withMetricName(metricName)
-                                        .withDimensions(
-                                            Dimension()
-                                                .withName("TableName")
-                                                .withValue(tableName)
-                                        )
+                                        .withDimensions(dimensions)
                                 )
                                 .withPeriod(60)
                                 .withStat("Sum")

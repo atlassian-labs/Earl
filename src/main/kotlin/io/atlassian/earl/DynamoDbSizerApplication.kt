@@ -16,7 +16,12 @@ class Console(
     private val cloudWatchMetricsFetcher: CloudWatchMetricsFetcher
 ): CommandLineRunner {
     override fun run(vararg args: String?) {
-        cloudWatchMetricsFetcher.getMetricsForTable("ConsumedWriteCapacityUnits", Regions.US_EAST_1, "rps-prod-east-worklens-user-objects")
+        cloudWatchMetricsFetcher.getMetricsForTable(
+            indexName = null,
+            metricName = "ConsumedWriteCapacityUnits",
+            region = Regions.US_EAST_1,
+            tableName = "rps-prod-east-worklens-user-objects"
+        )
     }
 
 }

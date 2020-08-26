@@ -15,19 +15,21 @@ class CloudWatchMetricsController(
     private val cloudWatchMetricsFetcher: CloudWatchMetricsFetcher
 ) {
     fun fillOutCloudWatchData(
+        indexName: String?,
         metric: String,
         region: Regions,
         tableName: String,
     ): CloudWatchDataResult {
-//        val data = cloudWatchMetricsFetcher.getMetricsForTable(
-//            metricName = metric,
-//            region = region,
-//            tableName = tableName
-//        )
+        val data = cloudWatchMetricsFetcher.getMetricsForTable(
+            indexName = indexName,
+            metricName = metric,
+            region = region,
+            tableName = tableName
+        )
 
-        val data = jacksonObjectMapper().registerModule(JavaTimeModule())
-            .readValue<List<Point>>(File("out.json").reader())
-            .sortedBy { it.time }
+//        val data = jacksonObjectMapper().registerModule(JavaTimeModule())
+//            .readValue<List<Point>>(File("out.json").reader())
+//            .sortedBy { it.time }
 
         return CloudWatchDataResult(
             data = data.map { XYChart.Data(it.time.toEpochMilli(), it.value) },

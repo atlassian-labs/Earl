@@ -5,6 +5,8 @@ import io.atlassian.earl.cloudwatch.Point
 import io.atlassian.earl.controller.AutoScalingConfig
 import io.atlassian.earl.controller.AutoScalingController
 import io.atlassian.earl.controller.CloudWatchMetricsController
+import javafx.beans.binding.Bindings
+import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
@@ -45,6 +47,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private val metricsViewModel = MetricsViewModel(operatingRegions.first())
     private val autoScalingViewModel = AutoScalingConfigViewModel()
     private val costViewModel = CostViewModel()
+    private val processingProperty = SimpleBooleanProperty(false)
 
     private val calculateButtons = mutableListOf<Button>()
 
@@ -76,13 +79,18 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                     }
 
                     field("Index Name (Optional)") {
-                        textfield()
+                        textfield(metricsViewModel.indexName)
                     }
 
                     buttonbar {
                         button("Fetch Cloudwatch Data") {
                             action { fetchCloudWatchDataAction() }
-                            enableWhen(metricsViewModel.valid)
+                            enableWhen(
+                                Bindings.and(
+                                    metricsViewModel.valid,
+                                    Bindings.not(processingProperty)
+                                )
+                            )
                         }.apply { calculateButtons.add(this) }
                     }
                 }
@@ -133,7 +141,12 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                     buttonbar {
                         button("Estimate Auto Scaling") {
                             action { estimateAutoScalingAction() }
-                            enableWhen(autoScalingViewModel.valid)
+                            enableWhen(
+                                Bindings.and(
+                                    autoScalingViewModel.valid,
+                                    Bindings.not(processingProperty)
+                                )
+                            )
                         }.apply { calculateButtons.add(this) }
                     }
                 }
@@ -173,46 +186,59 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                                 calculateOnDemandCost(consumedDataList)
                                 calculateProvisionedCost(provisionedDataList)
                             }
-                            enableWhen(costViewModel.valid)
+                            enableWhen(
+                                Bindings.and(
+                                    costViewModel.valid,
+                                    Bindings.not(processingProperty)
+                                )
+                            )
                         }
                     }
                 }
             }
         }
 
-        lineChart = linechart(
-            title = "",
-            x = NumberAxis(),
-            y = NumberAxis()
-        ) {
-            createSymbols = false
-
-            (xAxis as NumberAxis).apply {
-                isAutoRanging = false
-
-                tickLabelFormatter = object : StringConverter<Number>() {
-                    private val dateConverter = DateTimeStringConverter("d MMM, k:m")
-
-                    override fun toString(n: Number) = dateConverter.toString(Date(n.toLong()))
-
-                    override fun fromString(s: String) = dateConverter.fromString(s).time
-                }
-
-                tickLabelRotation = -90.0
-                tickUnit = Duration.ofHours(12).toMillis().toDouble()
-                minorTickCount = 4
-            }
-
+        stackpane {
             vgrow = Priority.ALWAYS
 
-            series("Consumed") {
-                consumedDataList = data
-                data.onChange { calculateOnDemandCost(it.list) }
+            lineChart = linechart(
+                title = "",
+                x = NumberAxis(),
+                y = NumberAxis()
+            ) {
+                createSymbols = false
+
+                (xAxis as NumberAxis).apply {
+                    isAutoRanging = false
+
+                    tickLabelFormatter = object : StringConverter<Number>() {
+                        private val dateConverter = DateTimeStringConverter("d MMM, k:m")
+
+                        override fun toString(n: Number) = dateConverter.toString(Date(n.toLong()))
+
+                        override fun fromString(s: String) = dateConverter.fromString(s).time
+                    }
+
+                    tickLabelRotation = -90.0
+                    tickUnit = Duration.ofHours(12).toMillis().toDouble()
+                    minorTickCount = 4
+                }
+
+                vgrow = Priority.ALWAYS
+
+                series("Consumed") {
+                    consumedDataList = data
+                    data.onChange { calculateOnDemandCost(it.list) }
+                }
+
+                series("Provisioned") {
+                    provisionedDataList = data
+                    data.onChange { calculateProvisionedCost(it.list) }
+                }
             }
 
-            series("Provisioned") {
-                provisionedDataList = data
-                data.onChange { calculateProvisionedCost(it.list) }
+            progressindicator {
+                visibleWhen { processingProperty }
             }
         }
     }
@@ -263,6 +289,8 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private fun estimateAutoScalingAction() {
         javaFxScope.launch {
             try {
+                processingProperty.set(true)
+
                 val job = processingScope.async {
                     val autoScalingConfig = AutoScalingConfig(
                         min = autoScalingViewModel.minCapacity.value,
@@ -286,6 +314,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                 val data = job.await()
                 provisionedDataList.setAll(data)
             } finally {
+                processingProperty.set(false)
             }
         }
     }
@@ -293,8 +322,11 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private fun fetchCloudWatchDataAction() {
         javaFxScope.launch {
             try {
+                processingProperty.set(true)
+
                 val job = processingScope.async {
                     cloudWatchMetricsController.fillOutCloudWatchData(
+                        indexName = metricsViewModel.indexName.value?.takeIf { it.isNotBlank() },
                         metric = metricsViewModel.metric.value,
                         region = metricsViewModel.region.value,
                         tableName = metricsViewModel.tableName.value
@@ -314,6 +346,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                     upperBound = upper
                 }
             } finally {
+                processingProperty.set(false)
             }
         }
     }
@@ -334,7 +367,8 @@ private class PreciseDoubleConverter : StringConverter<Number>() {
 private class MetricsViewModel(defaultRegion: Regions) : ViewModel() {
     val tableName = bind { SimpleStringProperty() }
     val region = bind { SimpleObjectProperty(defaultRegion) }
-    val metric = bind { SimpleStringProperty("ConsumedReadCapacityUnits") }
+    val metric = bind { SimpleStringProperty("ConsumedWriteCapacityUnits") }
+    val indexName = bind { SimpleStringProperty() }
 }
 
 private class AutoScalingConfigViewModel : ViewModel() {
