@@ -6,6 +6,9 @@ import javafx.scene.chart.XYChart
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -28,7 +31,7 @@ class AutoScalingController {
         consumedCapacityUnits: List<Point>,
     ): List<Point> {
         var lastScaleOutTime = Instant.MIN
-        var lastScaleInTime = Instant.MIN
+        val lastScaleInTimes = mutableListOf<Instant>(LocalDateTime.MIN.toInstant(ZoneOffset.UTC))
 
         var prevValue = autoScalingConfig.min
 
@@ -43,13 +46,14 @@ class AutoScalingController {
                 null
             }
 
-            val potentialScaleInValue = if (i >= 15 && lastScaleInTime <= time - autoScalingConfig.scaleInCooldown) {
-                val last15Points = consumedCapacityUnits.subList(i - 14, i + 1)
+            val potentialScaleInValue =
+                if (i >= 15 && canScaleIn(time, lastScaleInTimes, autoScalingConfig.scaleInCooldown)) {
+                    val last15Points = consumedCapacityUnits.subList(i - 14, i + 1)
 
-                calculateScaleInValue(autoScalingConfig, last15Points, prevValue)
-            } else {
-                null
-            }
+                    calculateScaleInValue(autoScalingConfig, last15Points, prevValue)
+                } else {
+                    null
+                }
 
             if (potentialScaleInValue != null && potentialScaleOutValue != null) {
                 throw RuntimeException("WTF")
@@ -61,7 +65,7 @@ class AutoScalingController {
                     Point(time, potentialScaleOutValue)
                 }
                 potentialScaleInValue != null -> {
-                    lastScaleInTime = time
+                    lastScaleInTimes.add(time)
                     Point(time, potentialScaleInValue)
                 }
                 else -> {
@@ -74,6 +78,21 @@ class AutoScalingController {
         }
 
         return result
+    }
+
+    private fun canScaleIn(
+        currentTime: Instant,
+        lastScaleInTimes: MutableList<Instant>,
+        scaleInCooldown: Duration,
+    ): Boolean {
+        if ((lastScaleInTimes.lastOrNull() ?: Instant.MIN) > currentTime - scaleInCooldown) {
+            return false
+        }
+
+        val currentDay = LocalDateTime.ofInstant(currentTime, UTC).toLocalDate().atStartOfDay()
+        lastScaleInTimes.removeIf { LocalDateTime.ofInstant(it, UTC) < currentDay }
+
+        return lastScaleInTimes.size < 4 || (lastScaleInTimes.last() + Duration.ofHours(1)) < currentTime
     }
 
     private fun calculateScaleOutValue(
@@ -96,6 +115,10 @@ class AutoScalingController {
         max(desired, autoScalingConfig.min).takeIf { it != prevValue }
     } else {
         null
+    }
+
+    companion object {
+        private val UTC = ZoneId.of("UTC")
     }
 }
 
