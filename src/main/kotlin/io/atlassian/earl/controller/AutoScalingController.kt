@@ -18,12 +18,11 @@ class AutoScalingController {
 
     fun fillInAutoScaling(
         autoScalingConfig: AutoScalingConfig,
-        autoScalingDataPoints: ObservableList<XYChart.Data<Number, Number>>,
         consumedCapacityUnits: List<Point>,
-    ) {
+    ): List<XYChart.Data<Number, Number>> {
         val data = calculateAutoScalingPoints(autoScalingConfig, consumedCapacityUnits)
 
-        autoScalingDataPoints.setAll(data.map { (time, value) -> XYChart.Data(time.toEpochMilli(), value) })
+        return data.map { (time, value) -> XYChart.Data(time.toEpochMilli(), value) }
     }
 
     private fun calculateAutoScalingPoints(
@@ -50,7 +49,11 @@ class AutoScalingController {
                 if (i >= 15 && canScaleIn(time, lastScaleInTimes, autoScalingConfig.scaleInCooldown)) {
                     val last15Points = consumedCapacityUnits.subList(i - 14, i + 1)
 
-                    calculateScaleInValue(autoScalingConfig, last15Points, prevValue)
+                    calculateScaleInValue(
+                        autoScalingConfig = autoScalingConfig,
+                        lastPoints = last15Points,
+                        prevValue = prevValue
+                    )
                 } else {
                     null
                 }

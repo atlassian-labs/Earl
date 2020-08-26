@@ -6,8 +6,6 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.atlassian.earl.cloudwatch.CloudWatchMetricsFetcher
 import io.atlassian.earl.cloudwatch.Point
-import javafx.collections.ObservableList
-import javafx.scene.chart.NumberAxis
 import javafx.scene.chart.XYChart
 import org.springframework.stereotype.Component
 import java.io.File
@@ -17,12 +15,10 @@ class CloudWatchMetricsController(
     private val cloudWatchMetricsFetcher: CloudWatchMetricsFetcher
 ) {
     fun fillOutCloudWatchData(
-        chartAxis: NumberAxis,
         metric: String,
         region: Regions,
-        seriesData: ObservableList<XYChart.Data<Number, Number>>,
         tableName: String,
-    ) {
+    ): CloudWatchDataResult {
 //        val data = cloudWatchMetricsFetcher.getMetricsForTable(
 //            metricName = metric,
 //            region = region,
@@ -33,12 +29,16 @@ class CloudWatchMetricsController(
             .readValue<List<Point>>(File("out.json").reader())
             .sortedBy { it.time }
 
-
-        seriesData.setAll(
-            data.map { XYChart.Data(it.time.toEpochMilli(), it.value) }
+        return CloudWatchDataResult(
+            data = data.map { XYChart.Data(it.time.toEpochMilli(), it.value) },
+            lower = data.first().time.toEpochMilli().toDouble(),
+            upper = data.last().time.toEpochMilli().toDouble()
         )
-
-        chartAxis.lowerBound = data.first().time.toEpochMilli().toDouble()
-        chartAxis.upperBound = data.last().time.toEpochMilli().toDouble()
     }
 }
+
+data class CloudWatchDataResult(
+    val data: List<XYChart.Data<Number, Number>>,
+    val lower: Double,
+    val upper: Double
+)
