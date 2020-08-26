@@ -7,12 +7,8 @@ import com.amazonaws.services.cloudwatch.model.GetMetricDataRequest
 import com.amazonaws.services.cloudwatch.model.Metric
 import com.amazonaws.services.cloudwatch.model.MetricDataQuery
 import com.amazonaws.services.cloudwatch.model.MetricStat
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.joda.time.DateTime
 import org.springframework.stereotype.Component
-import java.io.File
 import java.time.Instant
 
 @Component
@@ -48,18 +44,20 @@ class CloudWatchMetricsFetcher(
                                 .withPeriod(60)
                                 .withStat("Sum")
                         )
+                        .withReturnData(false),
+                    MetricDataQuery()
+                        .withId("consumedPerSecond")
+                        .withExpression("consumed/60")
+                        .withReturnData(true)
                 )
                 .withStartTime(now.minusDays(7).toDate())
                 .withEndTime(now.toDate())
         )
 
-        return metricsResult.metricDataResults.first().let {
-            it.timestamps
-                .zip(it.values)
-                .map { (timestamp, value) ->
-                    Point(timestamp.toInstant(), value.toDouble() / 60.0)
-                }
-        }.sortedBy { it.time }
+        return metricsResult.metricDataResults.first()
+            .let { it.timestamps.zip(it.values) }
+            .map { (timestamp, value) -> Point(timestamp.toInstant(), value.toDouble()) }
+            .sortedBy { it.time }
             .let { it.subList(0, it.size - 1) } // Last data point is probably incomplete
     }
 }

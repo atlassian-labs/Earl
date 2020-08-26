@@ -25,9 +25,11 @@ dependencies {
     implementation(kotlin("stdlib"))
     implementation(kotlin("stdlib-jdk7"))
     implementation(kotlin("stdlib-jdk8"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.1")
     implementation("no.tornado:tornadofx:1.7.20")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-javafx:1.3.9")
+
     implementation("com.amazonaws:aws-java-sdk-cloudwatch:1.11.842")
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.11.+")

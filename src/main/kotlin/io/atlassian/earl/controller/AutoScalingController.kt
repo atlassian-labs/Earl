@@ -1,18 +1,31 @@
 package io.atlassian.earl.controller
 
 import io.atlassian.earl.cloudwatch.Point
+import javafx.collections.ObservableList
+import javafx.scene.chart.XYChart
+import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
+@Component
+class AutoScalingController {
 
-object AutoScalingCalculator {
-
-    fun calculateAutoScalingPoints(
+    fun fillInAutoScaling(
         autoScalingConfig: AutoScalingConfig,
-        consumedCapacityUnits: List<Point>
+        autoScalingDataPoints: ObservableList<XYChart.Data<Number, Number>>,
+        consumedCapacityUnits: List<Point>,
+    ) {
+        val data = calculateAutoScalingPoints(autoScalingConfig, consumedCapacityUnits)
+
+        autoScalingDataPoints.setAll(data.map { (time, value) -> XYChart.Data(time.toEpochMilli(), value) })
+    }
+
+    private fun calculateAutoScalingPoints(
+        autoScalingConfig: AutoScalingConfig,
+        consumedCapacityUnits: List<Point>,
     ): List<Point> {
         var lastScaleOutTime = Instant.MIN
         var lastScaleInTime = Instant.MIN
@@ -42,14 +55,18 @@ object AutoScalingCalculator {
                 throw RuntimeException("WTF")
             }
 
-            val point = if (potentialScaleOutValue != null) {
-                lastScaleOutTime = time
-                Point(time, potentialScaleOutValue)
-            } else if (potentialScaleInValue != null) {
-                lastScaleInTime = time
-                Point(time, potentialScaleInValue)
-            } else {
-                Point(time, prevValue)
+            val point = when {
+                potentialScaleOutValue != null -> {
+                    lastScaleOutTime = time
+                    Point(time, potentialScaleOutValue)
+                }
+                potentialScaleInValue != null -> {
+                    lastScaleInTime = time
+                    Point(time, potentialScaleInValue)
+                }
+                else -> {
+                    Point(time, prevValue)
+                }
             }
 
             prevValue = point.value
