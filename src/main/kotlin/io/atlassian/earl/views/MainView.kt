@@ -41,15 +41,8 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private lateinit var consumedDataList: ObservableList<XYChart.Data<Number, Number>>
     private lateinit var provisionedDataList: ObservableList<XYChart.Data<Number, Number>>
 
-    private val tableNameProperty = SimpleStringProperty()
-    private val regionProperty = SimpleObjectProperty(operatingRegions.first())
-    private val metricProperty = SimpleStringProperty("ConsumedReadCapacityUnits")
-
-    private val minCapacityProperty = SimpleDoubleProperty(10.0)
-    private val maxCapacityProperty = SimpleDoubleProperty(100.0)
-    private val targetCapacityProperty = SimpleDoubleProperty(0.7)
-    private val scaleOutCooldownProperty = SimpleObjectProperty(Duration.ofSeconds(300))
-    private val scaleInCooldownProperty = SimpleObjectProperty(Duration.ofSeconds(1800))
+    private val metricsViewModel = MetricsViewModel(operatingRegions.first())
+    private val autoScalingViewModel = AutoScalingConfigViewModel()
 
     private val calculateButtons = mutableListOf<Button>()
 
@@ -64,11 +57,11 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 fieldset("DynamoDb Table Details") {
                     field("Table Name") {
-                        textfield(tableNameProperty)
+                        textfield(metricsViewModel.tableName).required()
                     }
 
                     field("Region") {
-                        combobox(values = operatingRegions, property = regionProperty) {
+                        combobox(values = operatingRegions, property = metricsViewModel.region) {
                             fitToParentWidth()
                         }
                     }
@@ -76,7 +69,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                     field("Metric") {
                         combobox(
                             values = listOf("ConsumedReadCapacityUnits", "ConsumedWriteCapacityUnits"),
-                            property = metricProperty
+                            property = metricsViewModel.metric
                         )
                     }
 
@@ -87,6 +80,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                     buttonbar {
                         button("Fetch Cloudwatch Data") {
                             action { fetchCloudWatchDataAction() }
+                            enableWhen(metricsViewModel.valid)
                         }.apply { calculateButtons.add(this) }
                     }
                 }
@@ -95,28 +89,49 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 fieldset("Auto Scaling Settings") {
                     field("Min Capacity") {
-                        textfield(minCapacityProperty)
+                        textfield(autoScalingViewModel.minCapacity) {
+                            validator { validateGreaterThanZero(it) }
+                        }
                     }
 
                     field("Max Capacity") {
-                        textfield(maxCapacityProperty)
+                        textfield(autoScalingViewModel.maxCapacity) {
+                            validator { validateGreaterThanZero(it) }
+                        }
                     }
 
                     field("Target Capacity (0.2-0.9)") {
-                        textfield(targetCapacityProperty)
+                        textfield(autoScalingViewModel.targetCapacity) {
+                            validator {
+                                if (it.isNullOrBlank() ||
+                                    !it.isDouble() ||
+                                    it.toDouble() > 0.9 ||
+                                    it.toDouble() < 0.2
+                                ) {
+                                    error("Must be between 0.2 - 0.9")
+                                } else {
+                                    null
+                                }
+                            }
+                        }
                     }
 
                     field("Scaling Out Cooldown (s)") {
-                        textfield(scaleOutCooldownProperty, DurationConverter())
+                        textfield(autoScalingViewModel.scaleOutCooldown, DurationConverter()) {
+                            validator { validateGreaterThanZero(it) }
+                        }
                     }
 
                     field("Scaling In Cooldown (s)") {
-                        textfield(scaleInCooldownProperty, DurationConverter())
+                        textfield(autoScalingViewModel.scaleInCooldown, DurationConverter()) {
+                            validator { validateGreaterThanZero(it) }
+                        }
                     }
 
                     buttonbar {
                         button("Estimate Auto Scaling") {
                             action { estimateAutoScalingAction() }
+                            enableWhen(autoScalingViewModel.valid)
                         }.apply { calculateButtons.add(this) }
                     }
                 }
@@ -158,17 +173,24 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
         }
     }
 
+    private fun ValidationContext.validateGreaterThanZero(it: String?): ValidationMessage? {
+        return if (it.isNullOrBlank() || !it.isLong() || it.toLong() <= 0) {
+            error("Must be greater than 0")
+        } else {
+            null
+        }
+    }
+
     private fun estimateAutoScalingAction() {
         javaFxScope.launch {
-            disableAllButtons()
             try {
                 val job = processingScope.async {
                     val autoScalingConfig = AutoScalingConfig(
-                        min = minCapacityProperty.value,
-                        max = maxCapacityProperty.value,
-                        target = targetCapacityProperty.value,
-                        scaleInCooldown = scaleInCooldownProperty.value,
-                        scaleOutCooldown = scaleOutCooldownProperty.value
+                        min = autoScalingViewModel.minCapacity.value,
+                        max = autoScalingViewModel.maxCapacity.value,
+                        target = autoScalingViewModel.targetCapacity.value,
+                        scaleInCooldown = autoScalingViewModel.scaleInCooldown.value,
+                        scaleOutCooldown = autoScalingViewModel.scaleOutCooldown.value
                     )
 
                     autoScalingController.fillInAutoScaling(
@@ -185,21 +207,18 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                 val data = job.await()
                 provisionedDataList.setAll(data)
             } finally {
-                enableAllButtons()
             }
         }
     }
 
     private fun fetchCloudWatchDataAction() {
         javaFxScope.launch {
-            disableAllButtons()
-
             try {
                 val job = processingScope.async {
                     cloudWatchMetricsController.fillOutCloudWatchData(
-                        metric = metricProperty.value,
-                        region = regionProperty.value,
-                        tableName = tableNameProperty.value
+                        metric = metricsViewModel.metric.value,
+                        region = metricsViewModel.region.value,
+                        tableName = metricsViewModel.tableName.value
                     )
                 }
 
@@ -207,23 +226,36 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 consumedDataList.setAll(data)
 
+                // There is a bug in the chart logic that doesn't clear the chart if you don't add a data point in there
+                provisionedDataList.clear()
+                provisionedDataList.add(XYChart.Data(0, 0))
+
                 (lineChart.xAxis as NumberAxis).apply {
                     lowerBound = lower
                     upperBound = upper
                 }
             } finally {
-                enableAllButtons()
             }
         }
     }
-
-    private fun disableAllButtons() = calculateButtons.forEach { it.isDisable = true }
-
-    private fun enableAllButtons() = calculateButtons.forEach { it.isDisable = false }
 }
 
 private class DurationConverter : StringConverter<Duration>() {
     override fun toString(value: Duration) = value.seconds.toString()
 
     override fun fromString(string: String): Duration = Duration.ofSeconds(string.toLong())
+}
+
+private class MetricsViewModel(defaultRegion: Regions) : ViewModel() {
+    val tableName = bind { SimpleStringProperty() }
+    val region = bind { SimpleObjectProperty(defaultRegion) }
+    val metric = bind { SimpleStringProperty("ConsumedReadCapacityUnits") }
+}
+
+private class AutoScalingConfigViewModel : ViewModel() {
+    val minCapacity = bind { SimpleDoubleProperty(10.0) }
+    val maxCapacity = bind { SimpleDoubleProperty(100.0) }
+    val targetCapacity = bind { SimpleDoubleProperty(0.7) }
+    val scaleOutCooldown = bind { SimpleObjectProperty(Duration.ofSeconds(300)) }
+    val scaleInCooldown = bind { SimpleObjectProperty(Duration.ofSeconds(1800)) }
 }
