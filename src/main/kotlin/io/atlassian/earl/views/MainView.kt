@@ -21,6 +21,7 @@ import javafx.util.StringConverter
 import javafx.util.converter.DateTimeStringConverter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
@@ -36,8 +37,8 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private val cloudWatchMetricsController: CloudWatchMetricsController by di()
     private val operatingRegions: List<Regions> by di()
 
-    private val javaFxScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.JavaFx)
-    private val processingScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.Default)
+    private val javaFxScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.JavaFx + SupervisorJob())
+    private val processingScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.Default + SupervisorJob())
 
     private lateinit var lineChart: LineChart<Number, Number>
 

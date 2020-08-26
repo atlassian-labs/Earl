@@ -9,6 +9,7 @@ import com.amazonaws.services.cloudwatch.model.MetricDataQuery
 import com.amazonaws.services.cloudwatch.model.MetricStat
 import org.joda.time.DateTime
 import org.springframework.stereotype.Component
+import java.lang.IllegalArgumentException
 import java.time.Instant
 
 @Component
@@ -61,6 +62,10 @@ class CloudWatchMetricsFetcher(
                 .withStartTime(now.minusDays(7).toDate())
                 .withEndTime(now.toDate())
         )
+
+        if (metricsResult.metricDataResults.first().timestamps.isEmpty()) {
+            throw IllegalArgumentException("No cloudwatch data found for $tableName, $region, gsi=$indexName")
+        }
 
         return metricsResult.metricDataResults.first()
             .let { it.timestamps.zip(it.values) }
