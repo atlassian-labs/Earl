@@ -23,6 +23,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
 import tornadofx.*
+import java.text.DecimalFormat
 import java.time.Duration
 import java.time.Instant
 import java.util.Date
@@ -43,6 +44,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
     private val metricsViewModel = MetricsViewModel(operatingRegions.first())
     private val autoScalingViewModel = AutoScalingConfigViewModel()
+    private val costViewModel = CostViewModel()
 
     private val calculateButtons = mutableListOf<Button>()
 
@@ -135,6 +137,46 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                         }.apply { calculateButtons.add(this) }
                     }
                 }
+
+                separator(orientation = Orientation.VERTICAL)
+
+                fieldset("Cost of Capacity Units") {
+                    field("Price per CU per hour") {
+                        textfield(costViewModel.provisionedPrice, PreciseDoubleConverter()) {
+                            validator { validateGreaterThanPointZero(it) }
+                        }
+                    }
+
+                    field("Price per million requests") {
+                        textfield(costViewModel.onDemandPrice) {
+                            validator { validateGreaterThanPointZero(it) }
+                        }
+                    }
+
+                    spacer()
+
+                    field("Estimated Provisioned Mode Cost") {
+                        textfield(costViewModel.totalProvisionedCost) {
+                            isDisable = true
+                        }
+                    }
+
+                    field("Estimated On-Demand Mode Cost") {
+                        textfield(costViewModel.totalOnDemandCost) {
+                            isDisable = true
+                        }
+                    }
+
+                    buttonbar {
+                        button("Recalculate") {
+                            action {
+                                calculateOnDemandCost(consumedDataList)
+                                calculateProvisionedCost(provisionedDataList)
+                            }
+                            enableWhen(costViewModel.valid)
+                        }
+                    }
+                }
             }
         }
 
@@ -165,10 +207,39 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
             series("Consumed") {
                 consumedDataList = data
+                data.onChange { calculateOnDemandCost(it.list) }
             }
 
             series("Provisioned") {
                 provisionedDataList = data
+                data.onChange { calculateProvisionedCost(it.list) }
+            }
+        }
+    }
+
+    private fun calculateProvisionedCost(data: List<XYChart.Data<Number, Number>>) {
+        processingScope.launch {
+            costViewModel.totalProvisionedCost.value = if (costViewModel.isValid) {
+                data
+                    // Int division to bucket into hours
+                    .groupBy { it.xValue.toLong() / Duration.ofHours(1).toMillis() }
+                    .mapValues { (_, values) -> values.maxOf { it.yValue.toDouble() } }
+                    .mapValues { (_, cu) -> cu * costViewModel.provisionedPrice.value }
+                    .values
+                    .sum()
+            } else {
+                0.0
+            }
+        }
+    }
+
+    private fun calculateOnDemandCost(data: List<XYChart.Data<Number, Number>>) {
+        processingScope.launch {
+            costViewModel.totalOnDemandCost.value = if (costViewModel.isValid) {
+                val totalUsage = data.sumByDouble { v -> v.yValue.toDouble() * 60.0 }
+                totalUsage / 1_000_000 * costViewModel.onDemandPrice.value
+            } else {
+                0.0
             }
         }
     }
@@ -176,6 +247,14 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private fun ValidationContext.validateGreaterThanZero(it: String?): ValidationMessage? {
         return if (it.isNullOrBlank() || !it.isLong() || it.toLong() <= 0) {
             error("Must be greater than 0")
+        } else {
+            null
+        }
+    }
+
+    private fun ValidationContext.validateGreaterThanPointZero(it: String?): ValidationMessage? {
+        return if (it.isNullOrBlank() || !it.isDouble() || it.toDouble() <= 0.0) {
+            error("Must be greater than 0.0")
         } else {
             null
         }
@@ -246,6 +325,12 @@ private class DurationConverter : StringConverter<Duration>() {
     override fun fromString(string: String): Duration = Duration.ofSeconds(string.toLong())
 }
 
+private class PreciseDoubleConverter : StringConverter<Number>() {
+    override fun toString(value: Number): String = DecimalFormat("0.000000").format(value)
+
+    override fun fromString(string: String) = string.toDouble()
+}
+
 private class MetricsViewModel(defaultRegion: Regions) : ViewModel() {
     val tableName = bind { SimpleStringProperty() }
     val region = bind { SimpleObjectProperty(defaultRegion) }
@@ -258,4 +343,12 @@ private class AutoScalingConfigViewModel : ViewModel() {
     val targetCapacity = bind { SimpleDoubleProperty(0.7) }
     val scaleOutCooldown = bind { SimpleObjectProperty(Duration.ofSeconds(300)) }
     val scaleInCooldown = bind { SimpleObjectProperty(Duration.ofSeconds(1800)) }
+}
+
+private class CostViewModel : ViewModel() {
+    val provisionedPrice = bind { SimpleDoubleProperty(0.00065) }
+    val onDemandPrice = bind { SimpleDoubleProperty(0.25) }
+
+    val totalProvisionedCost = bind { SimpleDoubleProperty(0.0) }
+    val totalOnDemandCost = bind { SimpleDoubleProperty(0.0) }
 }
