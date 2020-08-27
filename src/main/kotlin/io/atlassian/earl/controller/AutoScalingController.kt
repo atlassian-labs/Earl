@@ -102,7 +102,7 @@ class AutoScalingController {
         lastPoints: List<Point>,
         prevValue: Double
     ) = if (lastPoints.all { it.value > prevValue * autoScalingConfig.target }) {
-        val desired = ceil(lastPoints.first().value / autoScalingConfig.target)
+        val desired = ceil(lastPoints.maxOf { it.value } / autoScalingConfig.target)
         min(desired, autoScalingConfig.max).takeIf { it != prevValue }
     } else {
         null
@@ -113,7 +113,7 @@ class AutoScalingController {
         lastPoints: List<Point>,
         prevValue: Double
     ) = if (lastPoints.all { it.value < prevValue * (autoScalingConfig.target - 0.2) }) {
-        val desired = ceil(lastPoints.first().value / autoScalingConfig.target)
+        val desired = ceil(lastPoints.maxOf { it.value } / autoScalingConfig.target)
         max(desired, autoScalingConfig.min).takeIf { it != prevValue }
     } else {
         null

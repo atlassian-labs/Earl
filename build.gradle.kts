@@ -32,9 +32,6 @@ dependencies {
 
     implementation("com.amazonaws:aws-java-sdk-cloudwatch:1.11.842")
 
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.11.+")
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
-
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
     }
