@@ -1,4 +1,5 @@
 plugins {
+    java
     id("org.springframework.boot") version "2.3.3.RELEASE"
     id("io.spring.dependency-management") version "1.0.10.RELEASE"
     id("org.openjfx.javafxplugin") version "0.0.8"

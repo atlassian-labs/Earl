@@ -13,11 +13,20 @@ out of the planning. If you find the waste of your money to be *unacceptable*, t
 
 ## Building and Running
 
+You can find earl in the [downloads section](https://bitbucket.org/mikhail_atlassian/earl/downloads/). Grab the jar file
+and run it.
+
 Earl is written in Kotlin, and uses JavaFX and SpringBoot while targeting Java11. To run Earl, install 
 [JDK11](https://adoptopenjdk.net/) and set your JAVA_HOME to point to it. Then run the project with the gradle command
 
 ```bash
 ./gradlew bootrun
+```
+
+Package to a jar with
+
+```bash
+./gradlew assemble
 ``` 
 
 ## How to use Earl
