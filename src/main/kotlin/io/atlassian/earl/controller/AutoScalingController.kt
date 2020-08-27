@@ -1,7 +1,6 @@
 package io.atlassian.earl.controller
 
 import io.atlassian.earl.cloudwatch.Point
-import javafx.collections.ObservableList
 import javafx.scene.chart.XYChart
 import org.springframework.stereotype.Component
 import java.time.Duration

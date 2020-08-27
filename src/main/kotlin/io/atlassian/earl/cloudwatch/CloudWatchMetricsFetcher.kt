@@ -9,7 +9,6 @@ import com.amazonaws.services.cloudwatch.model.MetricDataQuery
 import com.amazonaws.services.cloudwatch.model.MetricStat
 import org.joda.time.DateTime
 import org.springframework.stereotype.Component
-import java.lang.IllegalArgumentException
 import java.time.Instant
 
 @Component

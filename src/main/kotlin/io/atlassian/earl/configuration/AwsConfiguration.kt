@@ -3,7 +3,6 @@ package io.atlassian.earl.configuration
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
