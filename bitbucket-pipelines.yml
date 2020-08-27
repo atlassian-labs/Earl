@@ -12,4 +12,15 @@ pipelines:
           - gradle
         script: 
           - bash ./gradlew assemble
+    - step:
+        name: Upload jar
+        trigger: manual
+        script:
+          - pipe: atlassian/bitbucket-upload-file:0.3.0
+            variables:
+              BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+              BITBUCKET_APP_PASSWORD: $UPLOAD_PASSWORD
+              FILENAME: 'build/libs/*.jar'
+
+
 
