@@ -14,15 +14,7 @@ class AwsConfiguration {
     fun credentials() = DefaultAWSCredentialsProviderChain()
 
     @Bean
-    fun operatingRegions() = listOf(
-        Regions.US_EAST_1,
-        Regions.US_WEST_1,
-        Regions.US_WEST_2,
-        Regions.EU_WEST_1,
-        Regions.EU_CENTRAL_1,
-        Regions.AP_SOUTHEAST_1,
-        Regions.AP_SOUTHEAST_2
-    )
+    fun operatingRegions() = Regions.values().toList()
 
     @Bean
     fun cloudWatchClient(

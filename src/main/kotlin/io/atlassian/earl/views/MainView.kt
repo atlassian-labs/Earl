@@ -45,7 +45,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private lateinit var consumedDataList: ObservableList<XYChart.Data<Number, Number>>
     private lateinit var provisionedDataList: ObservableList<XYChart.Data<Number, Number>>
 
-    private val metricsViewModel = MetricsViewModel(operatingRegions.first())
+    private val metricsViewModel = MetricsViewModel(Regions.US_EAST_1)
     private val autoScalingViewModel = AutoScalingConfigViewModel()
     private val costViewModel = CostViewModel()
     private val processingProperty = SimpleBooleanProperty(false)
