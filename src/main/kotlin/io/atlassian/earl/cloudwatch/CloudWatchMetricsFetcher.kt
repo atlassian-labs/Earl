@@ -21,7 +21,8 @@ class CloudWatchMetricsFetcher(
         region: Regions,
         tableName: String
     ): List<Point> {
-        val client = cloudWatchClient[region]!!
+        val client = cloudWatchClient[region]
+            ?: throw IllegalStateException("Cannot init cloudwatch client for $region")
 
         val now = DateTime.now()
 
@@ -62,7 +63,7 @@ class CloudWatchMetricsFetcher(
                 .withEndTime(now.toDate())
         )
 
-        if (metricsResult.metricDataResults.first().timestamps.isEmpty()) {
+        if (metricsResult.metricDataResults.firstOrNull()?.timestamps?.isEmpty() != false) {
             throw IllegalArgumentException("No cloudwatch data found for $tableName, $region, gsi=$indexName")
         }
 
