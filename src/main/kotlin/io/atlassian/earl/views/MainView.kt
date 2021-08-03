@@ -336,7 +336,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 val (data, lower, upper) = job.await()
 
-                consumedDataList.setAll(data)
+                consumedDataList.setAll(data.map { XYChart.Data(it.first, it.second) })
 
                 // There is a bug in the chart logic that doesn't clear the chart if you don't add a data point in there
                 provisionedDataList.clear()
