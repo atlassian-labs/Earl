@@ -292,7 +292,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
             try {
                 processingProperty.set(true)
 
-                val job = processingScope.async {
+                val job = processingScope.async<List<XYChart.Data<Number, Number>>> {
                     val autoScalingConfig = AutoScalingConfig(
                         min = autoScalingViewModel.minCapacity.value,
                         max = autoScalingViewModel.maxCapacity.value,
@@ -301,15 +301,15 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                         scaleOutCooldown = autoScalingViewModel.scaleOutCooldown.value
                     )
 
-                    autoScalingController.fillInAutoScaling(
+                    autoScalingController.calculateAutoScalingPoints(
                         autoScalingConfig = autoScalingConfig,
                         consumedCapacityUnits = consumedDataList.map { (x, y) ->
                             Point(
                                 time = Instant.ofEpochMilli(x.toLong()),
                                 value = y.toDouble()
                             )
-                        }
-                    )
+                        })
+                        .map { (time, value) -> XYChart.Data(time.toEpochMilli(), value) }
                 }
 
                 val data = job.await()
