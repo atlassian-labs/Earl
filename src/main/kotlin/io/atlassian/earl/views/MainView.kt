@@ -5,6 +5,7 @@ import io.atlassian.earl.cloudwatch.Point
 import io.atlassian.earl.controller.AutoScalingConfig
 import io.atlassian.earl.controller.AutoScalingController
 import io.atlassian.earl.controller.CloudWatchMetricsController
+import io.atlassian.earl.controller.PricingController
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
@@ -36,6 +37,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private val autoScalingController: AutoScalingController by di()
     private val cloudWatchMetricsController: CloudWatchMetricsController by di()
     private val operatingRegions: List<Regions> by di()
+    private val pricingController: PricingController by di()
 
     private val javaFxScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.JavaFx + SupervisorJob())
     private val processingScope = CoroutineScope(EmptyCoroutineContext + Dispatchers.Default + SupervisorJob())
@@ -247,13 +249,10 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private fun calculateProvisionedCost(data: List<XYChart.Data<Number, Number>>) {
         processingScope.launch {
             costViewModel.totalProvisionedCost.value = if (costViewModel.isValid) {
-                data
-                    // Int division to bucket into hours
-                    .groupBy { it.xValue.toLong() / Duration.ofHours(1).toMillis() }
-                    .mapValues { (_, values) -> values.maxOf { it.yValue.toDouble() } }
-                    .mapValues { (_, cu) -> cu * costViewModel.provisionedPrice.value }
-                    .values
-                    .sum()
+                pricingController.calculateProvisionedCapacityCost(
+                    costViewModel.provisionedPrice.value,
+                    data.map { Point(Instant.ofEpochMilli(it.xValue.toLong()), it.yValue.toDouble()) }
+                )
             } else {
                 0.0
             }
@@ -263,8 +262,10 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private fun calculateOnDemandCost(data: List<XYChart.Data<Number, Number>>) {
         processingScope.launch {
             costViewModel.totalOnDemandCost.value = if (costViewModel.isValid) {
-                val totalUsage = data.sumByDouble { v -> v.yValue.toDouble() * 60.0 }
-                totalUsage / 1_000_000 * costViewModel.onDemandPrice.value
+                pricingController.calculateOnDemandCost(
+                    costViewModel.onDemandPrice.value,
+                    data.map { it.yValue.toDouble() }
+                )
             } else {
                 0.0
             }
@@ -292,7 +293,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
             try {
                 processingProperty.set(true)
 
-                val job = processingScope.async {
+                val job = processingScope.async<List<XYChart.Data<Number, Number>>> {
                     val autoScalingConfig = AutoScalingConfig(
                         min = autoScalingViewModel.minCapacity.value,
                         max = autoScalingViewModel.maxCapacity.value,
@@ -301,15 +302,15 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                         scaleOutCooldown = autoScalingViewModel.scaleOutCooldown.value
                     )
 
-                    autoScalingController.fillInAutoScaling(
+                    autoScalingController.calculateAutoScalingPoints(
                         autoScalingConfig = autoScalingConfig,
                         consumedCapacityUnits = consumedDataList.map { (x, y) ->
                             Point(
                                 time = Instant.ofEpochMilli(x.toLong()),
                                 value = y.toDouble()
                             )
-                        }
-                    )
+                        })
+                        .map { (time, value) -> XYChart.Data(time.toEpochMilli(), value) }
                 }
 
                 val data = job.await()
@@ -336,7 +337,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 val (data, lower, upper) = job.await()
 
-                consumedDataList.setAll(data)
+                consumedDataList.setAll(data.map { XYChart.Data(it.first, it.second) })
 
                 // There is a bug in the chart logic that doesn't clear the chart if you don't add a data point in there
                 provisionedDataList.clear()

@@ -15,16 +15,7 @@ import kotlin.math.min
 @Component
 class AutoScalingController {
 
-    fun fillInAutoScaling(
-        autoScalingConfig: AutoScalingConfig,
-        consumedCapacityUnits: List<Point>,
-    ): List<XYChart.Data<Number, Number>> {
-        val data = calculateAutoScalingPoints(autoScalingConfig, consumedCapacityUnits)
-
-        return data.map { (time, value) -> XYChart.Data(time.toEpochMilli(), value) }
-    }
-
-    private fun calculateAutoScalingPoints(
+    fun calculateAutoScalingPoints(
         autoScalingConfig: AutoScalingConfig,
         consumedCapacityUnits: List<Point>,
     ): List<Point> {
@@ -36,7 +27,7 @@ class AutoScalingController {
         val result = mutableListOf<Point>()
 
         consumedCapacityUnits.forEachIndexed { i, (time, _) ->
-            val potentialScaleOutValue = if (i >= 2 && lastScaleOutTime <= time - autoScalingConfig.scaleOutCooldown) {
+            val potentialScaleOutValue = if (i >= 1 && lastScaleOutTime <= time - autoScalingConfig.scaleOutCooldown) {
                 val last2Points = consumedCapacityUnits.subList(i - 1, i + 1)
 
                 calculateScaleOutValue(autoScalingConfig, last2Points, prevValue)
@@ -58,7 +49,7 @@ class AutoScalingController {
                 }
 
             if (potentialScaleInValue != null && potentialScaleOutValue != null) {
-                throw RuntimeException("WTF")
+                throw RuntimeException("WTF") // Theoretically unreachable code
             }
 
             val point = when {

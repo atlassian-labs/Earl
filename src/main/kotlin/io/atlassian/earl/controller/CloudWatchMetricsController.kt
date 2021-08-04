@@ -2,7 +2,6 @@ package io.atlassian.earl.controller
 
 import com.amazonaws.regions.Regions
 import io.atlassian.earl.cloudwatch.CloudWatchMetricsFetcher
-import javafx.scene.chart.XYChart
 import org.springframework.stereotype.Component
 
 @Component
@@ -23,15 +22,22 @@ class CloudWatchMetricsController(
         )
 
         return CloudWatchDataResult(
-            data = data.map { XYChart.Data(it.time.toEpochMilli(), it.value) },
-            lower = data.first().time.toEpochMilli().toDouble(),
-            upper = data.last().time.toEpochMilli().toDouble()
+            data = data.map { it.time.toEpochMilli() to it.value },
+            lower = data.minOf { it.time }.toEpochMilli().toDouble(),
+            upper = data.maxOf { it.time }.toEpochMilli().toDouble()
         )
     }
 }
 
+/**
+ * Cloud watch usage data.
+ *
+ * @param data List of data points
+ * @param lower Lower bound of the X-axis
+ * @param upper Upper bound of the X-axis
+ */
 data class CloudWatchDataResult(
-    val data: List<XYChart.Data<Number, Number>>,
+    val data: List<Pair<Number, Number>>,
     val lower: Double,
     val upper: Double
 )
