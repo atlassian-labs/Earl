@@ -4,7 +4,9 @@ Earl
 Earl is a tool designed to help estimate how much you spent on DynamoDb in the last week. It can help you tweak your
 auto scaling settings to help you minimise wastage and compare the cost of provisioned vs. on-demand capacity modes.
 
-![Earl of Lemongrab](screenshots/earl-of-lemongrab.jpg)
+> This DynamoDb expense is unacceptable!
+>
+> -- The Earl
 
 DynamoDb auto scaling behaviour can be difficult to predict for a human brain but this app will take the guess work
 out of the planning. If you find the waste of your money to be *unacceptable*, then this is the tool for you!
@@ -12,9 +14,6 @@ out of the planning. If you find the waste of your money to be *unacceptable*, t
 ![Earl in action](screenshots/earl.png)
 
 ## Building and Running
-
-You can find earl in the [downloads section](https://bitbucket.org/mikhail_atlassian/earl/downloads/). Grab the jar file
-and run it.
 
 Earl is written in Kotlin, and uses JavaFX and SpringBoot while targeting Java11. To run Earl, install 
 [JDK11](https://adoptopenjdk.net/) and set your JAVA_HOME to point to it. Then run the project with the gradle command
@@ -94,10 +93,3 @@ is designed as an input for varying prices (e.g. price of RCUs/rWCUs, different 
 match the pricing for your region/account.
 
 You may hit the "Recalculate" button to refresh the prices, if any other box was updated.
-
-## Other Notes
-
-Earl was developed by myself as my innovation week project on a pretty tight deadline. I couldn't give it all the love I would 
-like to. As a result, there is no real exception handling or tests. It's all happy path or nothing. Kotlin does a really
-good job of eliminating many sources of errors but I'm sure some are still present. If you notice something broken,
-feel free to let me know or to push a fix.
