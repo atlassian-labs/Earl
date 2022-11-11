@@ -31,6 +31,8 @@ class CsvFileFetcherTest {
                     2022-11-11T00:00:00.000Z,0
                     2022-11-11T01:00:00.000Z,60
                     2022-11-11T02:00:00.000Z,120
+                    2022-11-11T02:05:00.000Z,125
+                    2022-11-11T02:06:00.000Z,126
                 """.trimIndent()
             )
         }
@@ -54,7 +56,7 @@ class CsvFileFetcherTest {
     fun `getData will interpolate between missing timestamps to make the data granular to one minute`() {
         val result = csvFileFetcher.getUsageData(tempFile)
 
-        assertThat(result).hasSize(2 * 60 + 1)  // 2 hours of data plus one record
+        assertThat(result).hasSize(2 * 60 + 6 + 1)  // 2 hours, 6 minutes of data plus one record
     }
 
     @Test
@@ -63,7 +65,7 @@ class CsvFileFetcherTest {
         val startTime = Instant.parse("2022-11-11T00:00:00.000Z")
 
         AutoCloseableSoftAssertions().use { softly ->
-            (0..120).forEach {
+            (0..126).forEach {
                 val expected = Record(startTime.plus(Duration.ofMinutes(it.toLong())), it.toDouble())
 
                 softly.assertThat(result[it].time).isEqualTo(expected.time)
