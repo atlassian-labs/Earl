@@ -55,6 +55,16 @@ The process starts with fetching the usage data from could watch. Fill in the fi
 When you have filled out the fields, hit the "Fetch Cloudwatch Data" button. This will retrieve the usage data for that
 table for the previous week. This data will show up on the chart below.
 
+### Fetching data from a CSV file
+
+If you aren't getting your data out of Cloudwatch, you can also upload a CSV file to populate the consumption data. The
+CSV file must have exactly two columns `time` and `value` in that order.
+
+| Header  | Description                                                                                                                                              |
+|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `time`  | Timestamp in ISO format. It must have 0 in the seconds and milliseconds fields. The data can be at any interval, the app will interpolate between points |
+| `value` | Floating point number of reads/writes per second                                                                                                         |
+
 ### Provisioned Capacity from Auto Scaling
 
 Earl doesn't use cloud watch to display the provisioned capacity. Instead, Earl will use the inputs in the "Auto Scaling 
