@@ -13,7 +13,7 @@ class CloudWatchMetricsController(
         metric: String,
         region: Regions,
         tableName: String,
-    ): CloudWatchDataResult {
+    ): ConsumedResourcesData {
         val data = cloudWatchMetricsFetcher.getMetricsForTable(
             indexName = indexName,
             metricName = metric,
@@ -21,7 +21,7 @@ class CloudWatchMetricsController(
             tableName = tableName
         )
 
-        return CloudWatchDataResult(
+        return ConsumedResourcesData(
             data = data.map { it.time.toEpochMilli() to it.value },
             lower = data.minOf { it.time }.toEpochMilli().toDouble(),
             upper = data.maxOf { it.time }.toEpochMilli().toDouble()
@@ -36,7 +36,7 @@ class CloudWatchMetricsController(
  * @param lower Lower bound of the X-axis
  * @param upper Upper bound of the X-axis
  */
-data class CloudWatchDataResult(
+data class ConsumedResourcesData(
     val data: List<Pair<Number, Number>>,
     val lower: Double,
     val upper: Double
