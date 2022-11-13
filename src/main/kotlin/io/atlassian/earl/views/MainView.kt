@@ -5,6 +5,7 @@ import io.atlassian.earl.cloudwatch.Point
 import io.atlassian.earl.controller.AutoScalingConfig
 import io.atlassian.earl.controller.AutoScalingController
 import io.atlassian.earl.controller.CloudWatchMetricsController
+import io.atlassian.earl.controller.CsvFileController
 import io.atlassian.earl.controller.PricingController
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleBooleanProperty
@@ -18,6 +19,7 @@ import javafx.scene.chart.NumberAxis
 import javafx.scene.chart.XYChart
 import javafx.scene.control.Button
 import javafx.scene.layout.Priority
+import javafx.stage.FileChooser
 import javafx.util.StringConverter
 import javafx.util.converter.DateTimeStringConverter
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
 import tornadofx.*
+import java.io.File
 import java.text.DecimalFormat
 import java.time.Duration
 import java.time.Instant
@@ -36,6 +39,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 class MainView : View("DynamoDb Auto Scaling Estimator") {
     private val autoScalingController: AutoScalingController by di()
     private val cloudWatchMetricsController: CloudWatchMetricsController by di()
+    private val csvFileController: CsvFileController by di()
     private val operatingRegions: List<Regions> by di()
     private val pricingController: PricingController by di()
 
@@ -51,6 +55,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
     private val autoScalingViewModel = AutoScalingConfigViewModel()
     private val costViewModel = CostViewModel()
     private val processingProperty = SimpleBooleanProperty(false)
+    private val csvFileViewModel = CsvFileViewModel()
 
     private val calculateButtons = mutableListOf<Button>()
 
@@ -63,57 +68,81 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
             hbox(5) {
                 spacing = 10.0
 
-                fieldset("DynamoDb Table Details") {
-                    field("Table Name") {
-                        textfield(metricsViewModel.tableName).required()
-                    }
+                vbox(3) {
+                    fieldset("Import DynamoDb Cloudwatch data") {
+                        field("Table Name") {
+                            textfield(metricsViewModel.tableName).required()
+                        }
 
-                    field("Region") {
-                        combobox(values = operatingRegions, property = metricsViewModel.region) {
-                            fitToParentWidth()
+                        field("Region") {
+                            combobox(values = operatingRegions, property = metricsViewModel.region) {
+                                fitToParentWidth()
+                            }
+                        }
+
+                        field("Metric") {
+                            combobox(
+                                values = listOf("ConsumedReadCapacityUnits", "ConsumedWriteCapacityUnits"),
+                                property = metricsViewModel.metric
+                            )
+                        }
+
+                        field("Index name (optional)") {
+                            textfield(metricsViewModel.indexName)
+                        }
+
+                        buttonbar {
+                            button("Fetch cloudwatch data") {
+                                action { fetchCloudWatchDataAction() }
+                                enableWhen(
+                                    Bindings.and(
+                                        metricsViewModel.valid,
+                                        Bindings.not(processingProperty)
+                                    )
+                                )
+                            }.apply { calculateButtons.add(this) }
                         }
                     }
 
-                    field("Metric") {
-                        combobox(
-                            values = listOf("ConsumedReadCapacityUnits", "ConsumedWriteCapacityUnits"),
-                            property = metricsViewModel.metric
-                        )
-                    }
+                    separator()
 
-                    field("Index Name (Optional)") {
-                        textfield(metricsViewModel.indexName)
-                    }
+                    fieldset("Import from CSV") {
+                        buttonbar {
+                            button("Load from file") {
+                                action {
+                                    val result = chooseFile(
+                                        title = "CSV file with usage data",
+                                        filters = arrayOf(FileChooser.ExtensionFilter("Comma separated values", "*.csv")),
+                                        mode = FileChooserMode.Single
+                                    )
 
-                    buttonbar {
-                        button("Fetch Cloudwatch Data") {
-                            action { fetchCloudWatchDataAction() }
-                            enableWhen(
-                                Bindings.and(
-                                    metricsViewModel.valid,
-                                    Bindings.not(processingProperty)
-                                )
-                            )
-                        }.apply { calculateButtons.add(this) }
+                                    if (result.isNotEmpty()) {
+                                        csvFileViewModel.file.set(result.first())
+
+                                        fetchCsvFileAction()
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
                 separator(orientation = Orientation.VERTICAL)
 
-                fieldset("Auto Scaling Settings") {
+                fieldset("Auto scaling settings") {
                     field("Min Capacity") {
                         textfield(autoScalingViewModel.minCapacity) {
                             validator { validateGreaterThanZero(it) }
                         }
                     }
 
-                    field("Max Capacity") {
+                    field("Max capacity") {
                         textfield(autoScalingViewModel.maxCapacity) {
                             validator { validateGreaterThanZero(it) }
                         }
                     }
 
-                    field("Target Capacity (0.2-0.9)") {
+                    field("Target capacity (0.2-0.9)") {
                         textfield(autoScalingViewModel.targetCapacity) {
                             validator {
                                 if (it.isNullOrBlank() ||
@@ -129,20 +158,20 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
                         }
                     }
 
-                    field("Scaling Out Cooldown (s)") {
+                    field("Scaling out cooldown (s)") {
                         textfield(autoScalingViewModel.scaleOutCooldown, DurationConverter()) {
                             validator { validateGreaterThanZero(it) }
                         }
                     }
 
-                    field("Scaling In Cooldown (s)") {
+                    field("Scaling in cooldown (s)") {
                         textfield(autoScalingViewModel.scaleInCooldown, DurationConverter()) {
                             validator { validateGreaterThanZero(it) }
                         }
                     }
 
                     buttonbar {
-                        button("Estimate Auto Scaling") {
+                        button("Estimate auto scaling") {
                             action { estimateAutoScalingAction() }
                             enableWhen(
                                 Bindings.and(
@@ -156,7 +185,7 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 separator(orientation = Orientation.VERTICAL)
 
-                fieldset("Cost of Capacity Units") {
+                fieldset("Cost of capacity units") {
                     field("Price per CU per hour") {
                         textfield(costViewModel.provisionedPrice, PreciseDoubleConverter()) {
                             validator { validateGreaterThanPointZero(it) }
@@ -171,13 +200,13 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                     spacer()
 
-                    field("Estimated Provisioned Mode Cost") {
+                    field("Estimated provisioned mode cost") {
                         textfield(costViewModel.totalProvisionedCost) {
                             isDisable = true
                         }
                     }
 
-                    field("Estimated On-Demand Mode Cost") {
+                    field("Estimated on-demand mode cost") {
                         textfield(costViewModel.totalOnDemandCost) {
                             isDisable = true
                         }
@@ -337,19 +366,45 @@ class MainView : View("DynamoDb Auto Scaling Estimator") {
 
                 val (data, lower, upper) = job.await()
 
-                consumedDataList.setAll(data.map { XYChart.Data(it.first, it.second) })
-
-                // There is a bug in the chart logic that doesn't clear the chart if you don't add a data point in there
-                provisionedDataList.clear()
-                provisionedDataList.add(XYChart.Data(0, 0))
-
-                (lineChart.xAxis as NumberAxis).apply {
-                    lowerBound = lower
-                    upperBound = upper
-                }
+                setGraphData(data, lower, upper)
             } finally {
                 processingProperty.set(false)
             }
+        }
+    }
+
+    private fun fetchCsvFileAction() {
+        javaFxScope.launch {
+            try {
+                processingProperty.set(true)
+
+                val job = processingScope.async {
+                    csvFileController.getData(csvFileViewModel.file.get())
+                }
+
+                val (data, lower, upper) = job.await()
+
+                setGraphData(data, lower, upper)
+            } finally {
+                processingProperty.set(false)
+            }
+        }
+    }
+
+    private fun setGraphData(
+        data: List<Pair<Number, Number>>,
+        lower: Double,
+        upper: Double
+    ) {
+        consumedDataList.setAll(data.map { XYChart.Data(it.first, it.second) })
+
+        // There is a bug in the chart logic that doesn't clear the chart if you don't add a data point in there
+        provisionedDataList.clear()
+        provisionedDataList.add(XYChart.Data(0, 0))
+
+        (lineChart.xAxis as NumberAxis).apply {
+            lowerBound = lower
+            upperBound = upper
         }
     }
 }
@@ -387,4 +442,8 @@ private class CostViewModel : ViewModel() {
 
     val totalProvisionedCost = bind { SimpleDoubleProperty(0.0) }
     val totalOnDemandCost = bind { SimpleDoubleProperty(0.0) }
+}
+
+private class CsvFileViewModel : ViewModel() {
+    val file = bind { SimpleObjectProperty<File>(null) }
 }
