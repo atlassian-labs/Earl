@@ -1,10 +1,10 @@
-val javaFxVersion = "11.0.2"
+val javaFxVersion = "17.0.2"
 
 plugins {
     java
     id("org.springframework.boot") version "2.5.3"
     id("io.spring.dependency-management") version "1.0.10.RELEASE"
-    id("org.openjfx.javafxplugin") version "0.0.9"
+    id("org.openjfx.javafxplugin") version "0.0.13"
 
     kotlin("jvm") version "1.5.21"
     kotlin("plugin.spring") version "1.5.21"
