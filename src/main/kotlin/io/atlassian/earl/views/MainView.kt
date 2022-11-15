@@ -437,7 +437,7 @@ private class AutoScalingConfigViewModel : ViewModel() {
 }
 
 private class CostViewModel : ViewModel() {
-    val provisionedPrice = bind { SimpleDoubleProperty(0.00065) }
+    val provisionedPrice = bind { SimpleDoubleProperty(0.00013) }
     val onDemandPrice = bind { SimpleDoubleProperty(0.25) }
 
     val totalProvisionedCost = bind { SimpleDoubleProperty(0.0) }
